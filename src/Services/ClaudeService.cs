@@ -67,7 +67,7 @@ Requirements:
         var parameters = new MessageParameters
         {
             Messages = messages,
-            Model = "claude-3-haiku-20240307",
+            Model = "claude-haiku-4-5",
             MaxTokens = 2000,
             Stream = false
         };
