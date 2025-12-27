@@ -51,22 +51,19 @@ public class HeaderComponent : IComponent
                 col.Item()
                     .PaddingTop(Brand.Spacing.Small)
                     .AlignCenter()
-                    .Row(row =>
-                    {
-                        row.AutoItem()
-                            .Text($"${Data.TotalBudget:N0}")
-                            .FontFamily(Brand.FontFamily)
-                            .FontSize(Brand.Type.SubHeadline)
-                            .FontColor(Brand.Colors.PrimaryOrange)
-                            .Bold();
+                    .Text($"${Data.TotalBudget:N0}")
+                    .FontFamily(Brand.FontFamily)
+                    .FontSize(Brand.Type.SubHeadline)
+                    .FontColor(Brand.Colors.PrimaryOrange)
+                    .Bold();
 
-                        row.AutoItem()
-                            .PaddingLeft(Brand.Spacing.Medium)
-                            .Text($"• {Data.Timeline}")
-                            .FontFamily(Brand.FontFamily)
-                            .FontSize(Brand.Type.Body)
-                            .FontColor(Brand.Colors.Text);
-                    });
+                col.Item()
+                    .PaddingTop(Brand.Spacing.Tiny)
+                    .AlignCenter()
+                    .Text(Data.Timeline)
+                    .FontFamily(Brand.FontFamily)
+                    .FontSize(Brand.Type.Body)
+                    .FontColor(Brand.Colors.Text);
             });
     }
 }
