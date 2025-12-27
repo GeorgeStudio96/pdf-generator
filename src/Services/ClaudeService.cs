@@ -76,25 +76,65 @@ Requirements:
         var textContent = response.Content.OfType<TextContent>().FirstOrDefault();
         var rawText = textContent?.Text ?? throw new Exception("No text content in AI response");
 
+        Console.WriteLine("=== RAW CLAUDE RESPONSE ===");
+        Console.WriteLine(rawText);
+        Console.WriteLine("=== END RAW RESPONSE ===");
+
         return ParseProposalFromResponse(rawText);
     }
 
     private ProposalData ParseProposalFromResponse(string rawText)
     {
         var cleanJson = CleanJson(rawText);
-        return JsonSerializer.Deserialize<ProposalData>(cleanJson) ?? new();
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        var result = JsonSerializer.Deserialize<ProposalData>(cleanJson, options) ?? new();
+
+        Console.WriteLine($"[DEBUG] Deserialized - ProjectName: {result.ProjectName}");
+        Console.WriteLine($"[DEBUG] Deserialized - TotalBudget: {result.TotalBudget}");
+        Console.WriteLine($"[DEBUG] Deserialized - Timeline: {result.Timeline}");
+        Console.WriteLine($"[DEBUG] Deserialized - Stages count: {result.Stages.Count}");
+        Console.WriteLine($"[DEBUG] Deserialized - BudgetDetails items count: {result.BudgetDetails.Items.Count}");
+
+        return result;
     }
 
     private string CleanJson(string rawText)
     {
-        var firstBrace = rawText.IndexOf('{');
-        var lastBrace = rawText.LastIndexOf('}');
+        // Remove markdown code blocks if present
+        var cleaned = rawText.Trim();
+        if (cleaned.StartsWith("```json"))
+        {
+            cleaned = cleaned.Substring(7); // Remove ```json
+        }
+        else if (cleaned.StartsWith("```"))
+        {
+            cleaned = cleaned.Substring(3); // Remove ```
+        }
+
+        if (cleaned.EndsWith("```"))
+        {
+            cleaned = cleaned.Substring(0, cleaned.Length - 3); // Remove trailing ```
+        }
+
+        cleaned = cleaned.Trim();
+
+        // Find JSON boundaries
+        var firstBrace = cleaned.IndexOf('{');
+        var lastBrace = cleaned.LastIndexOf('}');
 
         if (firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace)
         {
+            Console.WriteLine($"[DEBUG] Raw response: {rawText}");
             throw new Exception("No valid JSON found in AI response");
         }
 
-        return rawText.Substring(firstBrace, lastBrace - firstBrace + 1);
+        var json = cleaned.Substring(firstBrace, lastBrace - firstBrace + 1);
+        Console.WriteLine($"[DEBUG] Cleaned JSON: {json}");
+        return json;
     }
 }
