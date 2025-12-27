@@ -4,6 +4,8 @@ using DotNetEnv;
 using PdfService.Services;
 using PdfService.Models;
 using PdfService.Documents;
+using PdfService.Configuration;
+using StackExchange.Redis;
 
 QuestPDF.Settings.License = LicenseType.Community;
 Env.Load();
