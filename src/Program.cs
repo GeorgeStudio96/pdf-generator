@@ -8,6 +8,7 @@ using PdfService.Configuration;
 using StackExchange.Redis;
 
 QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.EnableDebugging = true; // Включаем детальные логи для поиска проблемы
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
