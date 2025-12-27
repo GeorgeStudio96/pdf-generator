@@ -36,5 +36,5 @@ public record BudgetItem
 {
     public string Category { get; init; } = "";
     public decimal Amount { get; init; }
-    public int Percentage { get; init; }
+    public decimal Percentage { get; init; }
 }

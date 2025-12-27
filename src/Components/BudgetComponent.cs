@@ -50,7 +50,7 @@ public class BudgetComponent : IComponent
                                                 .FontColor(Brand.Colors.Text);
 
                                             row.AutoItem()
-                                                .Text($"{item.Percentage}%")
+                                                .Text($"{item.Percentage:F1}%")
                                                 .FontFamily(Brand.FontFamily)
                                                 .FontSize(Brand.Type.SmallLabel)
                                                 .FontColor(Brand.Colors.Text);
@@ -72,7 +72,7 @@ public class BudgetComponent : IComponent
                                         .Column(stack =>
                                         {
                                             stack.Item()
-                                                .Width(item.Percentage / 100.0f)
+                                                .Width((float)item.Percentage / 100.0f)
                                                 .Height(8)
                                                 .Background(Brand.Colors.PrimaryOrange);
                                         });
