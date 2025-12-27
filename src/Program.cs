@@ -9,6 +9,13 @@ QuestPDF.Settings.License = LicenseType.Community;
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure JSON to use camelCase for API (matches JavaScript/TypeScript convention)
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
+
 var app = builder.Build();
 
 var internalApiKey = Env.GetString("INTERNAL_API_KEY");
