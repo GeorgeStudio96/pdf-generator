@@ -1,0 +1,21 @@
+# User-specific files
+*.env
+.env
+.env.*
+
+# Build results
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# PDFs (если не нужны в репозитории)
+*.pdf
