@@ -1,0 +1,11 @@
+bin/
+obj/
+.env
+.git/
+.gitignore
+*.md
+.DS_Store
+test-*.pdf
+.claude/
+docs/
+*.sln
