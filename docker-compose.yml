@@ -1,4 +1,22 @@
 services:
+  pdf-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pdf-service-app
+    ports:
+      - "5038:5038"
+    environment:
+      - REDIS_CONNECTION_STRING=redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - REDIS_JOB_TTL_HOURS=1
+      - REDIS_FAILED_JOB_TTL_HOURS=24
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: pdf-service-redis
