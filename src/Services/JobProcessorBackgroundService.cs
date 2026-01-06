@@ -8,18 +8,20 @@ using QuestPDF.Fluent;
 
 public class JobProcessorBackgroundService : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
+    // ИЗМЕНЕНИЕ 1: Используем IServiceScopeFactory вместо IServiceProvider
+    private readonly IServiceScopeFactory _scopeFactory; 
     private readonly ILogger<JobProcessorBackgroundService> _logger;
     private readonly RedisConfiguration _config;
     private readonly SemaphoreSlim _semaphore;
     private DateTime _lastCleanup = DateTime.UtcNow;
 
+    // ИЗМЕНЕНИЕ 2: Обновляем конструктор
     public JobProcessorBackgroundService(
-        IServiceProvider serviceProvider,
+        IServiceScopeFactory scopeFactory, // <--- Было IServiceProvider
         ILogger<JobProcessorBackgroundService> logger,
         RedisConfiguration config)
     {
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory; // <--- Сохраняем фабрику
         _logger = logger;
         _config = config;
         _semaphore = new SemaphoreSlim(_config.ProcessorConcurrency);
@@ -56,14 +58,15 @@ public class JobProcessorBackgroundService : BackgroundService
 
     private async Task ProcessPendingJobsAsync(CancellationToken stoppingToken)
     {
-        using var scope = _serviceProvider.CreateScope();
+        // ИЗМЕНЕНИЕ 3: Создаем scope через фабрику
+        using var scope = _scopeFactory.CreateScope(); 
         var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
 
         var pendingJobIds = await jobRepository.GetPendingJobIdsAsync(_config.ProcessorConcurrency);
 
         if (pendingJobIds.Count == 0)
         {
-            _logger.LogDebug("No pending jobs to process");
+            // _logger.LogDebug("No pending jobs to process"); // Можно раскомментировать для дебага
             return;
         }
 
@@ -79,7 +82,8 @@ public class JobProcessorBackgroundService : BackgroundService
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
+            // ИЗМЕНЕНИЕ 4: Тут тоже создаем scope через фабрику
+            using var scope = _scopeFactory.CreateScope();
             var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
             var claudeService = scope.ServiceProvider.GetRequiredService<ClaudeService>();
 
@@ -99,15 +103,12 @@ public class JobProcessorBackgroundService : BackgroundService
 
             try
             {
-                // Generate proposal content with Claude
                 var proposalData = await claudeService.GenerateProposal(job.RequestData);
 
-                // Generate PDF
-                var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : [];
+                var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : Array.Empty<byte>();
                 var document = new ProposalDocument(proposalData, logoBytes);
-                var pdfBytes = document.GeneratePdf(); // QuestPDF extension method
+                var pdfBytes = document.GeneratePdf();
 
-                // Save result
                 await jobRepository.SaveJobResultAsync(jobId, pdfBytes);
                 await jobRepository.UpdateJobStatusAsync(jobId, JobStatus.Completed);
                 await jobRepository.MoveJobToCompletedAsync(jobId);
@@ -129,7 +130,7 @@ public class JobProcessorBackgroundService : BackgroundService
                     JobStatus.Failed,
                     ex.Message
                 );
-                await jobRepository.MoveJobToCompletedAsync(jobId); // Failed jobs also go to completed queue
+                await jobRepository.MoveJobToCompletedAsync(jobId);
             }
         }
         finally
@@ -140,7 +141,6 @@ public class JobProcessorBackgroundService : BackgroundService
 
     private async Task PeriodicCleanupAsync()
     {
-        // Run cleanup every 15 minutes
         if (DateTime.UtcNow - _lastCleanup < TimeSpan.FromMinutes(15))
         {
             return;
@@ -148,7 +148,8 @@ public class JobProcessorBackgroundService : BackgroundService
 
         _logger.LogInformation("Running periodic cleanup of expired jobs");
 
-        using var scope = _serviceProvider.CreateScope();
+        // ИЗМЕНЕНИЕ 5: И тут тоже через фабрику
+        using var scope = _scopeFactory.CreateScope();
         var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
 
         await jobRepository.DeleteExpiredJobsAsync();

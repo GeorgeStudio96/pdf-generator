@@ -49,7 +49,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 // Redis configuration
 var redisConfig = new RedisConfiguration
 {
-    ConnectionString = Env.GetString("REDIS_CONNECTION_STRING", "localhost:6379"),
+    ConnectionString = Env.GetString("REDIS_URL") ?? Env.GetString("REDIS_CONNECTION_STRING", "localhost:6379"),
     JobTtlHours = int.Parse(Env.GetString("REDIS_JOB_TTL_HOURS", "1")),
     FailedJobTtlHours = int.Parse(Env.GetString("REDIS_FAILED_JOB_TTL_HOURS", "24")),
     ProcessorConcurrency = int.Parse(Env.GetString("JOB_PROCESSOR_CONCURRENCY", "5")),
