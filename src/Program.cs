@@ -1,3 +1,4 @@
+
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using DotNetEnv;
@@ -10,6 +11,32 @@ using StackExchange.Redis;
 QuestPDF.Settings.License = LicenseType.Community;
 QuestPDF.Settings.EnableDebugging = true; // Включаем детальные логи для поиска проблемы
 Env.Load();
+
+try 
+{
+    // Проверяем, лежат ли файлы рядом с запущенной программой
+    var fontFiles = new[] { "Inter-Regular.ttf", "Inter-Bold.ttf" };
+    
+    foreach (var fontName in fontFiles)
+    {
+        if (File.Exists(fontName))
+        {
+            using var stream = File.OpenRead(fontName);
+            QuestPDF.Drawing.FontManager.RegisterFont(stream);
+            Console.WriteLine($"✅ Font loaded: {fontName}");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️ Font NOT found: {fontName} (PDF texts might look wrong)");
+        }
+    }
+} 
+catch (Exception ex) 
+{ 
+    Console.WriteLine($"❌ Error loading fonts: {ex.Message}"); 
+}
+
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,6 +99,7 @@ app.Use(async (context, next) =>
 });
 
 var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : [];
+
 
 // New async job endpoints
 app.MapPost("/jobs/proposal", async (ProposalRequest request, IJobService jobService) =>
