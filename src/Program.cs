@@ -9,14 +9,12 @@ using PdfService.Configuration;
 using StackExchange.Redis;
 
 QuestPDF.Settings.License = LicenseType.Community;
-QuestPDF.Settings.EnableDebugging = true; // Включаем детальные логи для поиска проблемы
+QuestPDF.Settings.EnableDebugging = true; 
 Env.Load();
 
 try 
 {
-    // Проверяем, лежат ли файлы рядом с запущенной программой
     var fontFiles = new[] { "Inter-Regular.ttf", "Inter-Bold.ttf" };
-    
     foreach (var fontName in fontFiles)
     {
         if (File.Exists(fontName))
