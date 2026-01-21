@@ -37,6 +37,7 @@ public class ProposalDocument : IDocument
                     col.Item().ShowOnce().Component(new SummaryComponent(Data));
                     col.Item().ShowOnce().Component(new TimelineComponent(Data));
                     col.Item().ShowOnce().Component(new BudgetComponent(Data));
+                    col.Item().ShowOnce().Component(new PricingBreakdownComponent(Data));
                     col.Item().ShowOnce().Component(new StagesComponent(Data));
                 });
         });
