@@ -10,6 +10,7 @@ using PdfService.RagDocuments;
 using PdfService.AiServices;
 using PdfService.Shared;
 using StackExchange.Redis;
+using System.Text.Json.Serialization;
 
 QuestPDF.Settings.License = LicenseType.Community;
 QuestPDF.Settings.EnableDebugging = false; 
@@ -45,6 +46,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 // Redis configuration
