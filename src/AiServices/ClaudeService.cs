@@ -52,57 +52,28 @@ public class ClaudeService
             }
         }
 
-        // Получить шаблоны для индустрии
-        var industryTemplate = IndustryTemplates.GetTemplate(request.Industry);
-        var pricingGuidelines = IndustryTemplates.GetPricingGuidelines(request.Industry);
+        // Получить краткие шаблоны для индустрии (оптимизировано для скорости)
+        var industryHints = GetIndustryHints(request.Industry);
 
-        // Расширенный промпт с учетом индустрии и новых требований
+        // Оптимизированный промпт (сокращен для ускорения генерации)
         var prompt = $@"{contextSection}
 
-Создай детальное коммерческое предложение для проекта:
-- Название проекта: {request.ProjectName}
-- Общий бюджет: {request.Budget}₽
-- Дедлайн: {request.Deadline}
+Коммерческое предложение:
+- Проект: {request.ProjectName}
+- Бюджет: {request.Budget}₽
+- Срок: {request.Deadline}
 - Описание: {request.Description}
 - Индустрия: {request.Industry}
 
-{industryTemplate}
+{industryHints}
 
-{pricingGuidelines}
+ТРЕБОВАНИЯ:
+1. 3-5 этапов с названием, длительностью, стоимостью, задачами (3-6), deliverables (2-4), правками (2-3), политикой правок
+2. Ценообразование: тип (FixedPrice/TimeAndMaterial/Hybrid), обоснование, ресурсы (роли/часы/ставки), затраты (прямые/накладные/риски/маржа)
+3. Сумма этапов = {request.Budget}₽, проценты = 100%
+4. Русский язык, конкретика, обоснование цифр
 
-ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ:
-
-1. ЭТАПЫ РАБОТЫ (3-5 этапов):
-   - Каждый этап должен иметь понятное название
-   - Указать продолжительность (например: ""2-3 недели"", ""1 месяц"")
-   - Стоимость этапа
-   - Список конкретных задач (3-6 задач на этап)
-   - Список deliverables - что именно получит клиент (минимум 2-3 deliverables)
-   - Количество включенных раундов правок (обычно 2-3)
-   - Политика дополнительных правок (что будет, если нужно больше правок)
-
-2. ЦЕНООБРАЗОВАНИЕ:
-   - Определи тип ценообразования (фиксированная цена, почасовая или гибридная)
-   - Если почасовая - укажи роли специалистов, часы и ставки
-   - Распиши обоснование: почему именно такая стоимость
-   - Укажи распределение затрат:
-     * Прямые затраты (оплата специалистов)
-     * Накладные расходы (10-15%)
-     * Буфер на риски (5-10%)
-     * Маржа (если применимо)
-
-3. БЮДЖЕТ:
-   - Общая сумма ДОЛЖНА равняться {request.Budget}₽
-   - Сумма всех этапов = {request.Budget}₽
-   - Проценты всех категорий бюджета = 100%
-
-4. СТИЛЬ:
-   - На русском языке
-   - Профессиональный, но понятный стиль
-   - Конкретика, без воды
-   - Обоснование каждой цифры
-
-Создай предложение, которое вызовет доверие клиента и покажет прозрачность ценообразования.";
+Создай профессиональное предложение с прозрачным ценообразованием.";
 
         var messages = new List<Message>
         {
@@ -165,81 +136,42 @@ public class ClaudeService
             ["type"] = "object",
             ["properties"] = new JsonObject
             {
-                ["projectName"] = new JsonObject
-                {
-                    ["type"] = "string",
-                    ["description"] = "Название проекта"
-                },
-                ["totalBudget"] = new JsonObject
-                {
-                    ["type"] = "number",
-                    ["description"] = "Общий бюджет в рублях"
-                },
-                ["timeline"] = new JsonObject
-                {
-                    ["type"] = "string",
-                    ["description"] = "Сроки выполнения проекта"
-                },
-                ["executiveSummary"] = new JsonObject
-                {
-                    ["type"] = "string",
-                    ["description"] = "Краткое описание предложения"
-                },
+                ["projectName"] = new JsonObject { ["type"] = "string" },
+                ["totalBudget"] = new JsonObject { ["type"] = "number" },
+                ["timeline"] = new JsonObject { ["type"] = "string" },
+                ["executiveSummary"] = new JsonObject { ["type"] = "string" },
                 ["stages"] = new JsonObject
                 {
                     ["type"] = "array",
-                    ["description"] = "Этапы проекта",
                     ["items"] = new JsonObject
                     {
                         ["type"] = "object",
                         ["properties"] = new JsonObject
                         {
-                            ["name"] = new JsonObject {
-                                ["type"] = "string",
-                                ["description"] = "Название этапа"
-                            },
-                            ["duration"] = new JsonObject {
-                                ["type"] = "string",
-                                ["description"] = "Длительность этапа (например: '2-3 недели')"
-                            },
-                            ["cost"] = new JsonObject {
-                                ["type"] = "number",
-                                ["description"] = "Стоимость этапа в рублях"
-                            },
+                            ["name"] = new JsonObject { ["type"] = "string" },
+                            ["duration"] = new JsonObject { ["type"] = "string" },
+                            ["cost"] = new JsonObject { ["type"] = "number" },
                             ["tasks"] = new JsonObject
                             {
                                 ["type"] = "array",
-                                ["description"] = "Список задач на этом этапе",
                                 ["items"] = new JsonObject { ["type"] = "string" }
                             },
                             ["deliverables"] = new JsonObject
                             {
                                 ["type"] = "array",
-                                ["description"] = "Что получит клиент после завершения этапа",
                                 ["items"] = new JsonObject
                                 {
                                     ["type"] = "object",
                                     ["properties"] = new JsonObject
                                     {
                                         ["name"] = new JsonObject { ["type"] = "string" },
-                                        ["status"] = new JsonObject {
-                                            ["type"] = "string",
-                                            ["description"] = "Статус выполнения (по умолчанию: 'Не начато')"
-                                        }
+                                        ["status"] = new JsonObject { ["type"] = "string" }
                                     },
                                     ["required"] = new JsonArray { "name", "status" }
                                 }
                             },
-                            ["revisionsIncluded"] = new JsonObject
-                            {
-                                ["type"] = "number",
-                                ["description"] = "Количество включенных раундов правок (обычно 2-3)"
-                            },
-                            ["revisionPolicy"] = new JsonObject
-                            {
-                                ["type"] = "string",
-                                ["description"] = "Политика дополнительных правок (стоимость, условия)"
-                            }
+                            ["revisionsIncluded"] = new JsonObject { ["type"] = "number" },
+                            ["revisionPolicy"] = new JsonObject { ["type"] = "string" }
                         },
                         ["required"] = new JsonArray { "name", "duration", "cost", "tasks", "deliverables", "revisionsIncluded", "revisionPolicy" }
                     }
@@ -260,101 +192,47 @@ public class ClaudeService
                                     ["category"] = new JsonObject { ["type"] = "string" },
                                     ["amount"] = new JsonObject { ["type"] = "number" },
                                     ["percentage"] = new JsonObject { ["type"] = "number" }
-                                },
-                                ["required"] = new JsonArray { "category", "amount", "percentage" }
+                                }
                             }
                         },
                         ["justification"] = new JsonObject { ["type"] = "string" }
-                    },
-                    ["required"] = new JsonArray { "items", "justification" }
+                    }
                 },
                 ["pricing"] = new JsonObject
                 {
                     ["type"] = "object",
-                    ["description"] = "Детальная информация о ценообразовании",
                     ["properties"] = new JsonObject
                     {
                         ["type"] = new JsonObject
                         {
                             ["type"] = "string",
-                            ["description"] = "Тип ценообразования: FixedPrice, TimeAndMaterial или Hybrid",
                             ["enum"] = new JsonArray { "FixedPrice", "TimeAndMaterial", "Hybrid" }
                         },
-                        ["hourlyRate"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Общая часовая ставка (если применимо)"
-                        },
-                        ["seniorRate"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Ставка Senior специалиста (если почасовая)"
-                        },
-                        ["middleRate"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Ставка Middle специалиста (если почасовая)"
-                        },
-                        ["juniorRate"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Ставка Junior специалиста (если почасовая)"
-                        },
-                        ["totalHours"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Общее количество часов (если почасовая)"
-                        },
+                        ["hourlyRate"] = new JsonObject { ["type"] = "number" },
+                        ["seniorRate"] = new JsonObject { ["type"] = "number" },
+                        ["middleRate"] = new JsonObject { ["type"] = "number" },
+                        ["juniorRate"] = new JsonObject { ["type"] = "number" },
+                        ["totalHours"] = new JsonObject { ["type"] = "number" },
                         ["resources"] = new JsonObject
                         {
                             ["type"] = "array",
-                            ["description"] = "Распределение ресурсов по ролям",
                             ["items"] = new JsonObject
                             {
                                 ["type"] = "object",
                                 ["properties"] = new JsonObject
                                 {
-                                    ["role"] = new JsonObject {
-                                        ["type"] = "string",
-                                        ["description"] = "Роль специалиста (например: 'Senior Frontend Developer')"
-                                    },
-                                    ["hours"] = new JsonObject {
-                                        ["type"] = "number",
-                                        ["description"] = "Количество часов работы"
-                                    },
-                                    ["rate"] = new JsonObject {
-                                        ["type"] = "number",
-                                        ["description"] = "Ставка за час в рублях"
-                                    }
+                                    ["role"] = new JsonObject { ["type"] = "string" },
+                                    ["hours"] = new JsonObject { ["type"] = "number" },
+                                    ["rate"] = new JsonObject { ["type"] = "number" }
                                 },
                                 ["required"] = new JsonArray { "role", "hours", "rate" }
                             }
                         },
-                        ["justification"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "Обоснование стоимости: почему именно такая цена"
-                        },
-                        ["directCosts"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Прямые затраты (оплата специалистов)"
-                        },
-                        ["overheadCosts"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Накладные расходы (офис, налоги, и т.д.)"
-                        },
-                        ["riskBuffer"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Буфер на риски и непредвиденные ситуации"
-                        },
-                        ["profitMargin"] = new JsonObject
-                        {
-                            ["type"] = "number",
-                            ["description"] = "Маржа агентства/фрилансера"
-                        }
+                        ["justification"] = new JsonObject { ["type"] = "string" },
+                        ["directCosts"] = new JsonObject { ["type"] = "number" },
+                        ["overheadCosts"] = new JsonObject { ["type"] = "number" },
+                        ["riskBuffer"] = new JsonObject { ["type"] = "number" },
+                        ["profitMargin"] = new JsonObject { ["type"] = "number" }
                     },
                     ["required"] = new JsonArray { "type", "justification" }
                 }
@@ -367,6 +245,18 @@ public class ClaudeService
         };
 
         return schema;
+    }
+
+    private string GetIndustryHints(IndustryType industry)
+    {
+        return industry switch
+        {
+            IndustryType.Development => "Этапы: Архитектура → Frontend → Backend → QA → Деплой. Ставки: Senior 3000-5000₽, Middle 2000-3000₽, Junior 1000-1500₽.",
+            IndustryType.Design => "Этапы: Исследование → Концепт → UI дизайн → Финализация. Ставки: Art Director 3000-5000₽, Senior 2500-4000₽, Middle 1500-2500₽. 3-4 раунда правок.",
+            IndustryType.Marketing => "Этапы: Аудит → Контент → Кампании → Аналитика. Ставки: Strategist 3000-5000₽, Content Manager 1500-2500₽, SMM 1500-2500₽.",
+            IndustryType.SEO => "Этапы: Аудит → Техоптимизация → Контент → Линкбилдинг → Мониторинг. Ставки: SEO Strategist 3000-5000₽, Specialist 2000-3000₽.",
+            _ => "Создай логичные этапы на основе описания проекта с реалистичными сроками и ценами."
+        };
     }
 
     private string FormatContextSection(List<SearchResult> chunks)
