@@ -6,6 +6,7 @@ public record ProposalRequest
     public decimal Budget { get; init; }
     public string Deadline { get; init; } = "";
     public string Description { get; init; } = "";
+    public string? ProjectId { get; init; } = null;
 }
 
 public record ProposalData

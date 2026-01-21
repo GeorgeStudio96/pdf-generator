@@ -9,6 +9,7 @@ services:
     environment:
       - REDIS_CONNECTION_STRING=redis:6379
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - REDIS_JOB_TTL_HOURS=1
       - REDIS_FAILED_JOB_TTL_HOURS=24
@@ -18,13 +19,13 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: pdf-service-redis
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-stack-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

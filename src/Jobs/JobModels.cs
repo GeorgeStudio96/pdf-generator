@@ -1,4 +1,6 @@
-namespace PdfService.Models;
+namespace PdfService.Jobs;
+
+using PdfService.Models;
 
 public record Job
 {

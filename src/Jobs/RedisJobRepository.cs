@@ -1,4 +1,4 @@
-namespace PdfService.Services;
+namespace PdfService.Jobs;
 
 using System.Text.Json;
 using PdfService.Configuration;

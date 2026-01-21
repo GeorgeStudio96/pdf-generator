@@ -1,10 +1,10 @@
-namespace PdfService.Documents;
+namespace PdfService.PdfGeneration;
 
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using PdfService.Models;
-using PdfService.Components;
+using PdfService.PdfGeneration.Components;
 
 public class ProposalDocument : IDocument
 {

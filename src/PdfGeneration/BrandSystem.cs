@@ -1,4 +1,4 @@
-namespace PdfService.Configuration;
+namespace PdfService.PdfGeneration;
 
 public static class Brand
 {

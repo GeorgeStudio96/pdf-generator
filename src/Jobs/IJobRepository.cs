@@ -1,4 +1,4 @@
-namespace PdfService.Services;
+namespace PdfService.Jobs;
 
 using PdfService.Models;
 

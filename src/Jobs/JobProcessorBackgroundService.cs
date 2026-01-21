@@ -1,9 +1,10 @@
-namespace PdfService.Services;
+namespace PdfService.Jobs;
 
 using System.Diagnostics;
 using PdfService.Configuration;
-using PdfService.Documents;
+using PdfService.PdfGeneration;
 using PdfService.Models;
+using PdfService.AiServices;
 using QuestPDF.Fluent;
 
 public class JobProcessorBackgroundService : BackgroundService
@@ -103,7 +104,7 @@ public class JobProcessorBackgroundService : BackgroundService
 
             try
             {
-                var proposalData = await claudeService.GenerateProposal(job.RequestData);
+                var proposalData = await claudeService.GenerateProposal(job.RequestData, job.RequestData.ProjectId);
 
                 var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : Array.Empty<byte>();
                 var document = new ProposalDocument(proposalData, logoBytes);

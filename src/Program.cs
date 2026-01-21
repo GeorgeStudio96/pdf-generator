@@ -2,14 +2,17 @@
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using DotNetEnv;
-using PdfService.Services;
+using PdfService.Jobs;
 using PdfService.Models;
-using PdfService.Documents;
+using PdfService.PdfGeneration;
 using PdfService.Configuration;
+using PdfService.RagDocuments;
+using PdfService.AiServices;
+using PdfService.Shared;
 using StackExchange.Redis;
 
 QuestPDF.Settings.License = LicenseType.Community;
-QuestPDF.Settings.EnableDebugging = true; 
+QuestPDF.Settings.EnableDebugging = false; 
 Env.Load();
 
 try 
@@ -67,13 +70,38 @@ builder.Services.AddSingleton<IJobRepository, RedisJobRepository>();
 builder.Services.AddScoped<IJobService, JobService>();
 builder.Services.AddScoped<ClaudeService>(sp =>
 {
-    return new ClaudeService(Env.GetString("ANTHROPIC_API_KEY"));
+    var documentRepository = sp.GetRequiredService<DocumentRepository>();
+    var embeddingService = sp.GetRequiredService<EmbeddingService>();
+    return new ClaudeService(
+        Env.GetString("ANTHROPIC_API_KEY"),
+        documentRepository,
+        embeddingService);
 });
+
+// RAG services for document processing
+builder.Services.AddSingleton<DocumentService>();
+builder.Services.AddSingleton<DocumentRepository>();
+builder.Services.AddSingleton<EmbeddingService>();
+builder.Services.AddHttpClient<EmbeddingService>()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+        MaxConnectionsPerServer = 10
+    });
 
 // Background processor
 builder.Services.AddHostedService<JobProcessorBackgroundService>();
 
 var app = builder.Build();
+
+// Initialize Redis vector index for RAG
+using (var scope = app.Services.CreateScope())
+{
+    var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await RedisVectorSetup.InitializeVectorIndexAsync(redis, logger);
+}
 
 var internalApiKey = Env.GetString("INTERNAL_API_KEY");
 
@@ -125,7 +153,7 @@ app.MapGet("/jobs/{id}/download", async (string id, IJobService jobService) =>
 // Legacy sync endpoint (kept for backward compatibility)
 app.MapPost("/generate/proposal", async (ProposalRequest request, ClaudeService claudeService) =>
 {
-    var proposalData = await claudeService.GenerateProposal(request);
+    var proposalData = await claudeService.GenerateProposal(request, request.ProjectId);
     var document = new ProposalDocument(proposalData, logoBytes);
     var pdfBytes = document.GeneratePdf();
 
@@ -148,5 +176,8 @@ app.MapGet("/health", async (IConnectionMultiplexer redis) =>
 });
 
 app.MapGet("/", () => "Proposal Generator Ready (Async Job Queue Enabled)");
+
+// Document upload endpoints for RAG
+app.MapDocumentEndpoints();
 
 app.Run();

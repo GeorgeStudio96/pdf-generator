@@ -1,9 +1,8 @@
-namespace PdfService.Components;
+namespace PdfService.PdfGeneration.Components;
 
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using PdfService.Models;
-using PdfService.Configuration;
 
 public class HeaderComponent : IComponent
 {

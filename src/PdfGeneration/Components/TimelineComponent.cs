@@ -1,9 +1,9 @@
-namespace PdfService.Components;
+namespace PdfService.PdfGeneration.Components;
 
 
 using QuestPDF.Fluent;
 using PdfService.Models;
-using PdfService.Configuration;
+
 
 using QuestPDF.Infrastructure;
 
