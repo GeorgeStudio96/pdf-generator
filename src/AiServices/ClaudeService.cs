@@ -143,7 +143,8 @@ public class ClaudeService
 
         var options = new JsonSerializerOptions
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
         };
 
         var result = JsonSerializer.Deserialize<ProposalData>(json, options) ?? new();
