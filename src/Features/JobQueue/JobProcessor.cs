@@ -1,10 +1,8 @@
-namespace PdfService.Jobs;
+namespace PdfService.Features.JobQueue;
 
 using System.Diagnostics;
-using PdfService.Configuration;
-using PdfService.PdfGeneration;
-using PdfService.Models;
-using PdfService.AiServices;
+using PdfService.Shared;
+using PdfService.Features.ProposalGeneration;
 using QuestPDF.Fluent;
 
 public class JobProcessorBackgroundService : BackgroundService
@@ -110,7 +108,8 @@ public class JobProcessorBackgroundService : BackgroundService
                 var document = new ProposalDocument(proposalData, logoBytes);
                 var pdfBytes = document.GeneratePdf();
 
-                await jobRepository.SaveJobResultAsync(jobId, pdfBytes);
+                // Save both PDF and ProposalData for future updates
+                await jobRepository.SaveJobResultAsync(jobId, pdfBytes, proposalData);
                 await jobRepository.UpdateJobStatusAsync(jobId, JobStatus.Completed);
                 await jobRepository.MoveJobToCompletedAsync(jobId);
 

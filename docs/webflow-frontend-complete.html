@@ -1,0 +1,440 @@
+<!-- =======================================================================================
+     WEBFLOW FRONTEND - Complete Implementation
+     =======================================================================================
+     Add this code to your Webflow page custom code (Before </body>)
+
+     Required HTML structure in Webflow Designer:
+
+     1. Form ID="proposal-form" with inputs:
+        - name="project-name"
+        - name="budget" (type="number")
+        - name="deadline"
+        - name="description" (textarea)
+        - type="file" accept=".pdf,.doc,.docx,.md,.txt,.json" (optional)
+
+     2. Status div ID="status-container" (hidden by default)
+     3. Preview container ID="preview-container" (hidden by default)
+        - Canvas ID="pdf-canvas"
+        - Button ID="download-btn"
+        - Button ID="update-btn"
+
+     4. Update form ID="update-form" (hidden by default) with:
+        - Textarea ID="change-description"
+        - Button ID="submit-update-btn"
+======================================================================================== -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+
+<script type="module">
+// =======================================================================================
+// CONFIGURATION
+// =======================================================================================
+
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+
+const HONO_API_URL = 'https://your-hono-api.railway.app';  // UPDATE THIS!
+
+let currentJobId = null;
+let currentProjectId = null;
+let currentPdfBlob = null;
+
+// =======================================================================================
+// INITIAL FORM SUBMISSION (Create Proposal)
+// =======================================================================================
+
+document.getElementById('proposal-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  // Show loading state
+  showStatus('⏳ Preparing...', 'loading');
+
+  try {
+    // Step 1: Upload document if provided (optional)
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput && fileInput.files.length > 0) {
+      currentProjectId = await uploadDocument(fileInput.files[0]);
+    }
+
+    // Step 2: Create proposal job
+    const data = {
+      projectName: document.querySelector('[name="project-name"]').value,
+      budget: Number(document.querySelector('[name="budget"]').value),
+      deadline: document.querySelector('[name="deadline"]').value,
+      description: document.querySelector('[name="description"]').value,
+      projectId: currentProjectId,  // null if no document uploaded
+    };
+
+    const response = await fetch(`${HONO_API_URL}/api/proposals/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create proposal');
+    }
+
+    const result = await response.json();
+    currentJobId = result.jobId;
+
+    showStatus('⏳ Generating PDF...', 'loading');
+
+    // Step 3: Poll for completion
+    await pollJobStatus(currentJobId);
+
+  } catch (error) {
+    showStatus(`❌ Error: ${error.message}`, 'error');
+    console.error('Error:', error);
+  }
+});
+
+// =======================================================================================
+// FILE UPLOAD (RAG)
+// =======================================================================================
+
+async function uploadDocument(file) {
+  // Validate file type
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/markdown',
+    'text/plain',
+    'application/json'
+  ];
+
+  if (!allowedTypes.includes(file.type) &&
+      !file.name.match(/\.(pdf|doc|docx|md|txt|json)$/i)) {
+    throw new Error('Invalid file type. Supported: PDF, DOC, DOCX, MD, TXT, JSON');
+  }
+
+  showStatus('📄 Uploading document...', 'loading');
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('projectName', document.querySelector('[name="project-name"]').value);
+
+  const response = await fetch(`${HONO_API_URL}/api/documents/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to upload document');
+  }
+
+  const result = await response.json();
+  showStatus(`✅ Document uploaded (${result.chunks} chunks)`, 'success');
+
+  return result.projectId;
+}
+
+// =======================================================================================
+// POLLING & STATUS
+// =======================================================================================
+
+async function pollJobStatus(jobId) {
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${HONO_API_URL}/api/proposals/status/${jobId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to get status');
+        }
+
+        const status = await response.json();
+
+        // Status: 0=Pending, 1=Processing, 2=Completed, 3=Failed
+        switch (status.status) {
+          case 0:
+            showStatus('⏳ In queue...', 'loading');
+            break;
+          case 1:
+            showStatus('🔄 Generating PDF...', 'loading');
+            break;
+          case 2:
+            clearInterval(interval);
+            showStatus('✅ PDF ready!', 'success');
+            await showPDFPreview(jobId);
+            resolve();
+            break;
+          case 3:
+            clearInterval(interval);
+            showStatus(`❌ Failed: ${status.errorMessage}`, 'error');
+            reject(new Error(status.errorMessage));
+            break;
+        }
+      } catch (error) {
+        clearInterval(interval);
+        reject(error);
+      }
+    }, 2000);  // Poll every 2 seconds
+  });
+}
+
+// =======================================================================================
+// PDF PREVIEW
+// =======================================================================================
+
+async function showPDFPreview(jobId) {
+  // Fetch PDF
+  const response = await fetch(`${HONO_API_URL}/api/proposals/download/${jobId}`);
+
+  if (!response.ok) {
+    throw new Error('Failed to download PDF');
+  }
+
+  const pdfBlob = await response.blob();
+  currentPdfBlob = pdfBlob;
+
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+
+  // Render PDF preview using PDF.js
+  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+  const page = await pdf.getPage(1);
+
+  const scale = 1.5;
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.getElementById('pdf-canvas');
+  const context = canvas.getContext('2d');
+  canvas.height = viewport.height;
+  canvas.width = viewport.width;
+
+  await page.render({
+    canvasContext: context,
+    viewport: viewport,
+  }).promise;
+
+  // Show preview container
+  document.getElementById('preview-container').style.display = 'flex';
+  document.getElementById('update-form').style.display = 'block';
+
+  // Hide initial form
+  document.getElementById('proposal-form').style.display = 'none';
+}
+
+// =======================================================================================
+// UPDATE PROPOSAL
+// =======================================================================================
+
+document.getElementById('submit-update-btn').addEventListener('click', async () => {
+  const changeDescription = document.getElementById('change-description').value;
+
+  if (!changeDescription.trim()) {
+    alert('Please describe what you want to change');
+    return;
+  }
+
+  if (!currentJobId) {
+    alert('No proposal to update');
+    return;
+  }
+
+  showStatus('⏳ Processing update...', 'loading');
+
+  try {
+    const response = await fetch(`${HONO_API_URL}/api/proposals/${currentJobId}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        changeDescription: changeDescription,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update proposal');
+    }
+
+    const result = await response.json();
+    const updateJobId = result.jobId;
+
+    showStatus('⏳ AI updating proposal...', 'loading');
+
+    // Clear change description
+    document.getElementById('change-description').value = '';
+
+    // Poll for update completion
+    await pollJobStatus(updateJobId);
+
+    // Update currentJobId to new version
+    currentJobId = updateJobId;
+
+  } catch (error) {
+    showStatus(`❌ Update error: ${error.message}`, 'error');
+    console.error('Update error:', error);
+  }
+});
+
+// =======================================================================================
+// DOWNLOAD
+// =======================================================================================
+
+document.getElementById('download-btn').addEventListener('click', () => {
+  if (!currentPdfBlob) {
+    alert('No PDF available');
+    return;
+  }
+
+  const url = URL.createObjectURL(currentPdfBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `proposal-${currentJobId}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// =======================================================================================
+// UI HELPERS
+// =======================================================================================
+
+function showStatus(message, type) {
+  const statusContainer = document.getElementById('status-container');
+  const statusText = document.getElementById('status-text');
+
+  statusText.textContent = message;
+  statusContainer.style.display = 'block';
+
+  // Apply styling based on type
+  statusContainer.className = type;  // Can use CSS classes: loading, success, error
+}
+
+// =======================================================================================
+// INITIALIZATION
+// =======================================================================================
+
+console.log('PDF Proposal Generator initialized ✨');
+console.log('API URL:', HONO_API_URL);
+
+</script>
+
+<style>
+/* =======================================================================================
+   OPTIONAL STYLING
+   =======================================================================================
+   Add these styles to your Webflow custom code or page settings
+======================================================================================== */
+
+#status-container {
+  display: none;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-weight: 600;
+}
+
+#status-container.loading {
+  background-color: #FFF4E6;
+  border: 2px solid #FF6F23;
+  color: #FF6F23;
+}
+
+#status-container.success {
+  background-color: #E6F7ED;
+  border: 2px solid: #28A745;
+  color: #28A745;
+}
+
+#status-container.error {
+  background-color: #FFE6E6;
+  border: 2px solid #DC3545;
+  color: #DC3545;
+}
+
+#preview-container {
+  display: none;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+#pdf-canvas {
+  border: 1px solid #DDD;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  height: auto;
+}
+
+#update-form {
+  display: none;
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #F8F9FA;
+  border-radius: 8px;
+}
+
+#change-description {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px;
+  border: 1px solid #DDD;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+button {
+  background-color: #FF6F23;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #E65E1A;
+}
+
+button:disabled {
+  background-color: #CCC;
+  cursor: not-allowed;
+}
+</style>
+
+<!-- =======================================================================================
+     WEBFLOW DESIGNER HTML STRUCTURE
+     =======================================================================================
+
+     Create this structure in Webflow Designer:
+
+     <form id="proposal-form">
+       <input name="project-name" placeholder="Project Name" required>
+       <input name="budget" type="number" placeholder="Budget" required>
+       <input name="deadline" placeholder="Deadline (e.g., 2 weeks)" required>
+       <textarea name="description" placeholder="Project Description" required></textarea>
+
+       <label>Upload Document (Optional - for RAG context)</label>
+       <input type="file" accept=".pdf,.doc,.docx,.md,.txt,.json">
+       <p style="font-size: 12px; color: #666;">
+         Supported: PDF, DOC, DOCX, MD, TXT, JSON
+       </p>
+
+       <button type="submit">Create Proposal</button>
+     </form>
+
+     <div id="status-container" style="display: none;">
+       <p id="status-text"></p>
+     </div>
+
+     <div id="preview-container" style="display: none;">
+       <div style="flex: 1;">
+         <h3>PDF Preview</h3>
+         <canvas id="pdf-canvas"></canvas>
+         <button id="download-btn">Download PDF</button>
+       </div>
+
+       <div id="update-form" style="flex: 1; display: none;">
+         <h3>Make Changes</h3>
+         <p>Describe what you want to change:</p>
+         <textarea id="change-description" placeholder="e.g., 'Change deadline to 3 weeks' or 'Make summary more professional'"></textarea>
+         <button id="submit-update-btn">Update Proposal</button>
+       </div>
+     </div>
+
+======================================================================================== -->

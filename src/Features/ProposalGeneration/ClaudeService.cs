@@ -1,4 +1,4 @@
-namespace PdfService.AiServices;
+namespace PdfService.Features.ProposalGeneration;
 
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
@@ -6,8 +6,7 @@ using Anthropic.SDK.Common;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using PdfService.Models;
-using PdfService.RagDocuments;
+using PdfService.Features.DocumentProcessing;
 using PdfService.Shared;
 
 public class ClaudeService

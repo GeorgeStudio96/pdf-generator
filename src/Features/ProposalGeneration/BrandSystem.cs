@@ -1,4 +1,4 @@
-namespace PdfService.PdfGeneration;
+namespace PdfService.Features.ProposalGeneration;
 
 public static class Brand
 {

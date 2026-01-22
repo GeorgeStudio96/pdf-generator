@@ -1,4 +1,4 @@
-namespace PdfService.Jobs;
+namespace PdfService.Features.JobQueue;
 
 using PdfService.Models;
 

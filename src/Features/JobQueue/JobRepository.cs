@@ -1,8 +1,8 @@
-namespace PdfService.Jobs;
+namespace PdfService.Features.JobQueue;
 
 using System.Text.Json;
-using PdfService.Configuration;
-using PdfService.Models;
+using PdfService.Shared;
+using PdfService.Features.ProposalGeneration;
 using StackExchange.Redis;
 
 public class RedisJobRepository : IJobRepository
@@ -65,6 +65,9 @@ public class RedisJobRepository : IJobRepository
             Id = hashDict["id"],
             Status = Enum.Parse<JobStatus>(hashDict["status"]),
             RequestData = JsonSerializer.Deserialize<ProposalRequest>(hashDict["requestData"]) ?? new(),
+            ProposalData = hashDict.ContainsKey("proposalData") && !string.IsNullOrEmpty(hashDict["proposalData"])
+                ? JsonSerializer.Deserialize<ProposalData>(hashDict["proposalData"])
+                : null,
             CreatedAt = DateTime.Parse(hashDict["createdAt"]),
             CompletedAt = hashDict.ContainsKey("completedAt") && !string.IsNullOrEmpty(hashDict["completedAt"])
                 ? DateTime.Parse(hashDict["completedAt"])
@@ -103,12 +106,22 @@ public class RedisJobRepository : IJobRepository
         _logger.LogInformation("Job {JobId} status updated to {Status}", jobId, status);
     }
 
-    public async Task SaveJobResultAsync(string jobId, byte[] pdfBytes)
+    public async Task SaveJobResultAsync(string jobId, byte[] pdfBytes, ProposalData? proposalData = null)
     {
         var jobKey = $"{JobKeyPrefix}{jobId}";
         var base64Pdf = Convert.ToBase64String(pdfBytes);
 
-        await _db.HashSetAsync(jobKey, "pdfBytes", base64Pdf);
+        var hashEntries = new List<HashEntry>
+        {
+            new HashEntry("pdfBytes", base64Pdf)
+        };
+
+        if (proposalData != null)
+        {
+            hashEntries.Add(new HashEntry("proposalData", JsonSerializer.Serialize(proposalData)));
+        }
+
+        await _db.HashSetAsync(jobKey, hashEntries.ToArray());
 
         _logger.LogInformation("Job {JobId} PDF result saved ({Size} bytes)", jobId, pdfBytes.Length);
     }

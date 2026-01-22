@@ -2,20 +2,18 @@
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using DotNetEnv;
-using PdfService.Jobs;
-using PdfService.Models;
-using PdfService.PdfGeneration;
-using PdfService.Configuration;
-using PdfService.RagDocuments;
-using PdfService.AiServices;
+using PdfService.Features.JobQueue;
+using PdfService.Features.ProposalGeneration;
+using PdfService.Features.DocumentProcessing;
+using PdfService.Features.ProposalUpdate;
 using PdfService.Shared;
 using StackExchange.Redis;
 
 QuestPDF.Settings.License = LicenseType.Community;
-QuestPDF.Settings.EnableDebugging = false; 
+QuestPDF.Settings.EnableDebugging = false;
 Env.Load();
 
-try 
+try
 {
     var fontFiles = new[] { "Inter-Regular.ttf", "Inter-Bold.ttf" };
     foreach (var fontName in fontFiles)
@@ -31,17 +29,17 @@ try
             Console.WriteLine($"⚠️ Font NOT found: {fontName} (PDF texts might look wrong)");
         }
     }
-} 
-catch (Exception ex) 
-{ 
-    Console.WriteLine($"❌ Error loading fonts: {ex.Message}"); 
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"❌ Error loading fonts: {ex.Message}");
 }
 
 
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure JSON to use camelCase for API (matches JavaScript/TypeScript convention)
+// Configure JSON to use camelCase for API
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -65,9 +63,11 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(config.ConnectionString);
 });
 
-// Repositories and services
+// Job Queue services
 builder.Services.AddSingleton<IJobRepository, RedisJobRepository>();
 builder.Services.AddScoped<IJobService, JobService>();
+
+// ProposalGeneration services
 builder.Services.AddScoped<ClaudeService>(sp =>
 {
     var documentRepository = sp.GetRequiredService<DocumentRepository>();
@@ -78,7 +78,24 @@ builder.Services.AddScoped<ClaudeService>(sp =>
         embeddingService);
 });
 
-// RAG services for document processing
+// ProposalUpdate services
+builder.Services.AddScoped<ClassifierService>(sp =>
+{
+    return new ClassifierService(
+        Env.GetString("ANTHROPIC_API_KEY"),
+        sp.GetRequiredService<ILogger<ClassifierService>>());
+});
+
+builder.Services.AddScoped<UpdateService>(sp =>
+{
+    return new UpdateService(
+        sp.GetRequiredService<ClassifierService>(),
+        sp.GetRequiredService<ClaudeService>(),
+        Env.GetString("ANTHROPIC_API_KEY"),
+        sp.GetRequiredService<ILogger<UpdateService>>());
+});
+
+// DocumentProcessing (RAG) services
 builder.Services.AddSingleton<DocumentService>();
 builder.Services.AddSingleton<DocumentRepository>();
 builder.Services.AddSingleton<EmbeddingService>();
@@ -90,8 +107,8 @@ builder.Services.AddHttpClient<EmbeddingService>()
         MaxConnectionsPerServer = 10
     });
 
-// Background processor
-builder.Services.AddHostedService<JobProcessorBackgroundService>();
+// Background job processor
+builder.Services.AddHostedService<JobProcessor>();
 
 var app = builder.Build();
 
@@ -105,11 +122,12 @@ using (var scope = app.Services.CreateScope())
 
 var internalApiKey = Env.GetString("INTERNAL_API_KEY");
 
-// Authentication middleware - apply to both /generate and /jobs endpoints
+// Authentication middleware
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/generate") ||
-        context.Request.Path.StartsWithSegments("/jobs"))
+        context.Request.Path.StartsWithSegments("/jobs") ||
+        context.Request.Path.StartsWithSegments("/api/documents"))
     {
         var requestKey = context.Request.Headers["X-Internal-Key"].FirstOrDefault();
 
@@ -127,7 +145,7 @@ app.Use(async (context, next) =>
 var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : [];
 
 
-// New async job endpoints
+// === ProposalGeneration Endpoints ===
 app.MapPost("/jobs/proposal", async (ProposalRequest request, IJobService jobService) =>
 {
     var response = await jobService.CreateJobAsync(request);
@@ -160,7 +178,16 @@ app.MapPost("/generate/proposal", async (ProposalRequest request, ClaudeService 
     return Results.File(pdfBytes, "application/pdf", "proposal.pdf");
 });
 
-// Health check endpoint
+
+// === ProposalUpdate Endpoints ===
+app.MapProposalUpdateEndpoints();
+
+
+// === DocumentProcessing Endpoints ===
+app.MapDocumentEndpoints();
+
+
+// === Health Check ===
 app.MapGet("/health", async (IConnectionMultiplexer redis) =>
 {
     try
@@ -175,9 +202,6 @@ app.MapGet("/health", async (IConnectionMultiplexer redis) =>
     }
 });
 
-app.MapGet("/", () => "Proposal Generator Ready (Async Job Queue Enabled)");
-
-// Document upload endpoints for RAG
-app.MapDocumentEndpoints();
+app.MapGet("/", () => "PDF Proposal Generator - Feature-Based Architecture ✨");
 
 app.Run();

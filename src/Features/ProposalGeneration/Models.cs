@@ -1,4 +1,4 @@
-namespace PdfService.Models;
+namespace PdfService.Features.ProposalGeneration;
 
 public record ProposalRequest
 {

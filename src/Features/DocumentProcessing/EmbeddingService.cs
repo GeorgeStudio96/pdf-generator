@@ -1,4 +1,4 @@
-namespace PdfService.Shared;
+namespace PdfService.Features.DocumentProcessing;
 
 using System.Text;
 using System.Text.Json;

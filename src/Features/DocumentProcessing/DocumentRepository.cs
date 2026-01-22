@@ -1,4 +1,4 @@
-namespace PdfService.RagDocuments;
+namespace PdfService.Features.DocumentProcessing;
 
 using StackExchange.Redis;
 

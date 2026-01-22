@@ -1,4 +1,4 @@
-namespace PdfService.PdfGeneration;
+namespace PdfService.Features.ProposalGeneration;
 
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
