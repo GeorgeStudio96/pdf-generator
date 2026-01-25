@@ -82,7 +82,7 @@ public class UpdateService
                 new Message(RoleType.User, prompt)
             },
             MaxTokens = 3000,
-            Model = AnthropicModels.Claude3Haiku,  // Fast for simple edits
+            Model = "claude-haiku-4-5",  // Fast for simple edits
             Stream = false,
             Temperature = 0.0m
         };
@@ -109,7 +109,7 @@ public class UpdateService
                 new Message(RoleType.User, prompt)
             },
             MaxTokens = 4000,
-            Model = AnthropicModels.Claude3Haiku,  // Still Haiku - good enough for reformulation
+            Model = "claude-haiku-4-5",  // Still Haiku - good enough for reformulation
             Stream = false,
             Temperature = 0.3m  // Slight creativity for reformulation
         };

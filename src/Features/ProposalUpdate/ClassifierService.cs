@@ -61,7 +61,7 @@ public class ClassifierService
                     new Message(RoleType.User, prompt)
                 },
                 MaxTokens = 500,
-                Model = AnthropicModels.Claude3Haiku,  // Fast & cheap
+                Model = "claude-haiku-4-5",  // Fast & cheap
                 Stream = false,
                 Temperature = 0.0m  // Deterministic
             };
