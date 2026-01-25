@@ -3,8 +3,7 @@ namespace PdfService.Features.ProposalGeneration;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using PdfService.Models;
-using PdfService.PdfGeneration.Components;
+using PdfService.Features.ProposalGeneration.Components;
 
 public class ProposalDocument : IDocument
 {

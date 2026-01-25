@@ -2,7 +2,6 @@ namespace PdfService.Features.ProposalGeneration.Components;
 
 
 using QuestPDF.Fluent;
-using PdfService.Models;
 
 
 using QuestPDF.Infrastructure;

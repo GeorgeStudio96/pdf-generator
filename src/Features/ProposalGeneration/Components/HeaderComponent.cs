@@ -2,7 +2,6 @@ namespace PdfService.Features.ProposalGeneration.Components;
 
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
-using PdfService.Models;
 
 public class HeaderComponent : IComponent
 {

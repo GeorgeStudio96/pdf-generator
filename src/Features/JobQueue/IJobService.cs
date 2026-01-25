@@ -1,6 +1,6 @@
 namespace PdfService.Features.JobQueue;
 
-using PdfService.Models;
+using PdfService.Features.ProposalGeneration;
 
 public interface IJobService
 {
