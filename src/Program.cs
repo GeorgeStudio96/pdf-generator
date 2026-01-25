@@ -108,7 +108,7 @@ builder.Services.AddHttpClient<EmbeddingService>()
     });
 
 // Background job processor
-builder.Services.AddHostedService<JobProcessor>();
+builder.Services.AddHostedService<JobProcessorBackgroundService>();
 
 var app = builder.Build();
 
