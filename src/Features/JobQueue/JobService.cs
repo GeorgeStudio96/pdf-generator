@@ -25,6 +25,7 @@ public class JobService : IJobService
 
         await _jobRepository.SaveJobAsync(job);
         await _jobRepository.MoveJobToPendingAsync(job.Id);
+        await _jobRepository.PublishJobNotificationAsync(job.Id);
 
         _logger.LogInformation("Job {JobId} created for project '{ProjectName}'", job.Id, request.ProjectName);
 

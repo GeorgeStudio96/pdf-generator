@@ -13,4 +13,5 @@ public interface IJobRepository
     Task MoveJobToProcessingAsync(string jobId);
     Task MoveJobToCompletedAsync(string jobId);
     Task DeleteExpiredJobsAsync();
+    Task PublishJobNotificationAsync(string jobId);
 }

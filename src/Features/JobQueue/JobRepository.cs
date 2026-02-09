@@ -8,6 +8,7 @@ using StackExchange.Redis;
 public class RedisJobRepository : IJobRepository
 {
     private readonly IDatabase _db;
+    private readonly ISubscriber _subscriber;
     private readonly RedisConfiguration _config;
     private readonly ILogger<RedisJobRepository> _logger;
 
@@ -15,6 +16,7 @@ public class RedisJobRepository : IJobRepository
     private const string PendingQueueKey = "jobs:pending";
     private const string ProcessingQueueKey = "jobs:processing";
     private const string CompletedQueueKey = "jobs:completed";
+    public const string JobNotifyChannel = "jobs:notify";
 
     public RedisJobRepository(
         IConnectionMultiplexer redis,
@@ -22,6 +24,7 @@ public class RedisJobRepository : IJobRepository
         ILogger<RedisJobRepository> logger)
     {
         _db = redis.GetDatabase();
+        _subscriber = redis.GetSubscriber();
         _config = config;
         _logger = logger;
     }
@@ -184,5 +187,11 @@ public class RedisJobRepository : IJobRepository
             await _db.SortedSetRemoveAsync(CompletedQueueKey, expiredJobs);
             _logger.LogInformation("Cleaned up {Count} expired jobs from completed queue", expiredJobs.Length);
         }
+    }
+
+    public async Task PublishJobNotificationAsync(string jobId)
+    {
+        await _subscriber.PublishAsync(RedisChannel.Literal(JobNotifyChannel), jobId);
+        _logger.LogDebug("Published notification for job {JobId}", jobId);
     }
 }

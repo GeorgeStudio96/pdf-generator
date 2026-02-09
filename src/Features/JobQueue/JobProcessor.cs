@@ -4,23 +4,26 @@ using System.Diagnostics;
 using PdfService.Shared;
 using PdfService.Features.ProposalGeneration;
 using QuestPDF.Fluent;
+using StackExchange.Redis;
 
 public class JobProcessorBackgroundService : BackgroundService
 {
-    // ИЗМЕНЕНИЕ 1: Используем IServiceScopeFactory вместо IServiceProvider
-    private readonly IServiceScopeFactory _scopeFactory; 
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<JobProcessorBackgroundService> _logger;
     private readonly RedisConfiguration _config;
     private readonly SemaphoreSlim _semaphore;
+    private readonly SemaphoreSlim _jobSignal = new(0);
     private DateTime _lastCleanup = DateTime.UtcNow;
 
-    // ИЗМЕНЕНИЕ 2: Обновляем конструктор
     public JobProcessorBackgroundService(
-        IServiceScopeFactory scopeFactory, // <--- Было IServiceProvider
+        IServiceScopeFactory scopeFactory,
+        IConnectionMultiplexer redis,
         ILogger<JobProcessorBackgroundService> logger,
         RedisConfiguration config)
     {
-        _scopeFactory = scopeFactory; // <--- Сохраняем фабрику
+        _scopeFactory = scopeFactory;
+        _redis = redis;
         _logger = logger;
         _config = config;
         _semaphore = new SemaphoreSlim(_config.ProcessorConcurrency);
@@ -29,10 +32,21 @@ public class JobProcessorBackgroundService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "Job Processor started with concurrency: {Concurrency}, poll interval: {Interval}s",
+            "Job Processor started with concurrency: {Concurrency}, fallback poll interval: {Interval}s",
             _config.ProcessorConcurrency,
             _config.ProcessorPollIntervalSeconds
         );
+
+        // Subscribe to Pub/Sub notifications for instant wake-up
+        var subscriber = _redis.GetSubscriber();
+        await subscriber.SubscribeAsync(RedisChannel.Literal(RedisJobRepository.JobNotifyChannel), (_, message) =>
+        {
+            _logger.LogDebug("Received job notification for job {JobId}", message);
+            _jobSignal.Release();
+        });
+
+        _logger.LogInformation("Subscribed to Redis channel '{Channel}' for job notifications",
+            RedisJobRepository.JobNotifyChannel);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -46,28 +60,37 @@ public class JobProcessorBackgroundService : BackgroundService
                 _logger.LogError(ex, "Error in job processor main loop");
             }
 
-            await Task.Delay(
-                TimeSpan.FromSeconds(_config.ProcessorPollIntervalSeconds),
-                stoppingToken
-            );
+            // Wait for either: Pub/Sub notification (instant) OR fallback timeout
+            try
+            {
+                await _jobSignal.WaitAsync(
+                    TimeSpan.FromSeconds(_config.ProcessorPollIntervalSeconds),
+                    stoppingToken
+                );
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            // Drain any extra signals that accumulated while we were processing
+            while (_jobSignal.CurrentCount > 0)
+                _jobSignal.Wait(0);
         }
 
+        await subscriber.UnsubscribeAsync(RedisChannel.Literal(RedisJobRepository.JobNotifyChannel));
         _logger.LogInformation("Job Processor stopped");
     }
 
     private async Task ProcessPendingJobsAsync(CancellationToken stoppingToken)
     {
-        // ИЗМЕНЕНИЕ 3: Создаем scope через фабрику
-        using var scope = _scopeFactory.CreateScope(); 
+        using var scope = _scopeFactory.CreateScope();
         var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
 
         var pendingJobIds = await jobRepository.GetPendingJobIdsAsync(_config.ProcessorConcurrency);
 
         if (pendingJobIds.Count == 0)
-        {
-            // _logger.LogDebug("No pending jobs to process"); // Можно раскомментировать для дебага
             return;
-        }
 
         _logger.LogInformation("Processing {Count} pending jobs", pendingJobIds.Count);
 
@@ -81,7 +104,6 @@ public class JobProcessorBackgroundService : BackgroundService
 
         try
         {
-            // ИЗМЕНЕНИЕ 4: Тут тоже создаем scope через фабрику
             using var scope = _scopeFactory.CreateScope();
             var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
             var claudeService = scope.ServiceProvider.GetRequiredService<ClaudeService>();
@@ -142,13 +164,10 @@ public class JobProcessorBackgroundService : BackgroundService
     private async Task PeriodicCleanupAsync()
     {
         if (DateTime.UtcNow - _lastCleanup < TimeSpan.FromMinutes(15))
-        {
             return;
-        }
 
         _logger.LogInformation("Running periodic cleanup of expired jobs");
 
-        // ИЗМЕНЕНИЕ 5: И тут тоже через фабрику
         using var scope = _scopeFactory.CreateScope();
         var jobRepository = scope.ServiceProvider.GetRequiredService<IJobRepository>();
 
