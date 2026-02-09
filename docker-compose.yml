@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: pdf-service-app
     ports:
-      - "5038:5038"
+      - "5038:8080"
     environment:
       - REDIS_CONNECTION_STRING=redis:6379
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -16,7 +16,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    restart: unless-stopped
 
   redis:
     image: redis/redis-stack-server:latest
@@ -31,7 +30,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-    restart: unless-stopped
 
 volumes:
   redis-data:
