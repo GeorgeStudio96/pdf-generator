@@ -12,6 +12,12 @@ public class RedisJobRepository : IJobRepository
     private readonly RedisConfiguration _config;
     private readonly ILogger<RedisJobRepository> _logger;
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
     private const string JobKeyPrefix = "job:";
     private const string PendingQueueKey = "jobs:pending";
     private const string ProcessingQueueKey = "jobs:processing";
@@ -36,7 +42,7 @@ public class RedisJobRepository : IJobRepository
         {
             new HashEntry("id", job.Id),
             new HashEntry("status", job.Status.ToString()),
-            new HashEntry("requestData", JsonSerializer.Serialize(job.RequestData)),
+            new HashEntry("requestData", JsonSerializer.Serialize(job.RequestData, _jsonOptions)),
             new HashEntry("createdAt", job.CreatedAt.ToString("O"))
         };
 
@@ -67,9 +73,9 @@ public class RedisJobRepository : IJobRepository
         {
             Id = hashDict["id"],
             Status = Enum.Parse<JobStatus>(hashDict["status"]),
-            RequestData = JsonSerializer.Deserialize<ProposalRequest>(hashDict["requestData"]) ?? new(),
+            RequestData = JsonSerializer.Deserialize<ProposalRequest>(hashDict["requestData"], _jsonOptions) ?? new(),
             ProposalData = hashDict.ContainsKey("proposalData") && !string.IsNullOrEmpty(hashDict["proposalData"])
-                ? JsonSerializer.Deserialize<ProposalData>(hashDict["proposalData"])
+                ? JsonSerializer.Deserialize<ProposalData>(hashDict["proposalData"], _jsonOptions)
                 : null,
             CreatedAt = DateTime.Parse(hashDict["createdAt"]),
             CompletedAt = hashDict.ContainsKey("completedAt") && !string.IsNullOrEmpty(hashDict["completedAt"])
@@ -125,7 +131,7 @@ public class RedisJobRepository : IJobRepository
 
         if (proposalData != null)
         {
-            hashEntries.Add(new HashEntry("proposalData", JsonSerializer.Serialize(proposalData)));
+            hashEntries.Add(new HashEntry("proposalData", JsonSerializer.Serialize(proposalData, _jsonOptions)));
         }
 
         await _db.HashSetAsync(jobKey, hashEntries.ToArray());
