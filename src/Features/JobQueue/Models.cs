@@ -37,4 +37,5 @@ public record JobStatusResponse
     public DateTime CreatedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
     public string? ErrorMessage { get; init; }
+    public ProposalData? ProposalData { get; init; }
 }

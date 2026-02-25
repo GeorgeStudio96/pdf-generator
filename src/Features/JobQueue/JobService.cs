@@ -53,7 +53,8 @@ public class JobService : IJobService
             Status = job.Status,
             CreatedAt = job.CreatedAt,
             CompletedAt = job.CompletedAt,
-            ErrorMessage = job.ErrorMessage
+            ErrorMessage = job.ErrorMessage,
+            ProposalData = job.Status == JobStatus.DataReady ? job.ProposalData : null
         };
     }
 

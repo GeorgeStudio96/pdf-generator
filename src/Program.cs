@@ -168,6 +168,29 @@ app.MapGet("/jobs/{id}/download", async (string id, IJobService jobService) =>
     return Results.File(pdfBytes, "application/pdf", $"proposal-{id}.pdf");
 });
 
+// Finalize: generate PDF from user-edited data (no AI, ~200ms)
+app.MapPost("/jobs/proposal/{jobId}/finalize", async (
+    string jobId,
+    ProposalData editedData,
+    IJobRepository jobRepository) =>
+{
+    var job = await jobRepository.GetJobAsync(jobId);
+    if (job == null)
+        return Results.NotFound(new { error = "Job not found" });
+
+    if (job.Status != JobStatus.DataReady)
+        return Results.BadRequest(new { error = $"Job is not in DataReady state (current: {job.Status})" });
+
+    var document = new ProposalDocument(editedData, logoBytes);
+    var pdfBytes = document.GeneratePdf();
+
+    await jobRepository.SaveJobResultAsync(jobId, pdfBytes, editedData);
+    await jobRepository.UpdateJobStatusAsync(jobId, JobStatus.Completed);
+    await jobRepository.MoveJobToCompletedAsync(jobId);
+
+    return Results.File(pdfBytes, "application/pdf", $"proposal-{jobId}.pdf");
+});
+
 // Legacy sync endpoint (kept for backward compatibility)
 app.MapPost("/generate/proposal", async (ProposalRequest request, ClaudeService claudeService) =>
 {
