@@ -126,13 +126,9 @@ public class JobProcessorBackgroundService : BackgroundService
             {
                 var proposalData = await claudeService.GenerateProposal(job.RequestData, job.RequestData.ProjectId);
 
-                var logoBytes = File.Exists("logo.png") ? File.ReadAllBytes("logo.png") : Array.Empty<byte>();
-                var document = new ProposalDocument(proposalData, logoBytes);
-                var pdfBytes = document.GeneratePdf();
-
-                // Save both PDF and ProposalData for future updates
-                await jobRepository.SaveJobResultAsync(jobId, pdfBytes, proposalData);
-                await jobRepository.UpdateJobStatusAsync(jobId, JobStatus.Completed);
+                // Save ProposalData only — PDF will be generated after user editing (finalize)
+                await jobRepository.SaveProposalDataAsync(jobId, proposalData);
+                await jobRepository.UpdateJobStatusAsync(jobId, JobStatus.DataReady);
                 await jobRepository.MoveJobToCompletedAsync(jobId);
 
                 stopwatch.Stop();

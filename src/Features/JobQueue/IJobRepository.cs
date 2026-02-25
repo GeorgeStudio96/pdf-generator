@@ -8,6 +8,7 @@ public interface IJobRepository
     Task<Job?> GetJobAsync(string jobId);
     Task UpdateJobStatusAsync(string jobId, JobStatus status, string? errorMessage = null);
     Task SaveJobResultAsync(string jobId, byte[] pdfBytes, ProposalData? proposalData = null);
+    Task SaveProposalDataAsync(string jobId, ProposalData proposalData);
     Task<List<string>> GetPendingJobIdsAsync(int count);
     Task MoveJobToPendingAsync(string jobId);
     Task MoveJobToProcessingAsync(string jobId);

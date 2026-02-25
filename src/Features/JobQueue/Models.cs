@@ -18,6 +18,7 @@ public enum JobStatus
 {
     Pending,
     Processing,
+    DataReady,
     Completed,
     Failed
 }

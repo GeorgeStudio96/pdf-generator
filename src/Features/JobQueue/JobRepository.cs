@@ -90,14 +90,18 @@ public class RedisJobRepository : IJobRepository
 
         await _db.HashSetAsync(jobKey, "status", status.ToString());
 
-        if (status == JobStatus.Completed || status == JobStatus.Failed)
+        if (status == JobStatus.Completed || status == JobStatus.Failed || status == JobStatus.DataReady)
         {
-            await _db.HashSetAsync(jobKey, "completedAt", DateTime.UtcNow.ToString("O"));
+            if (status != JobStatus.DataReady)
+                await _db.HashSetAsync(jobKey, "completedAt", DateTime.UtcNow.ToString("O"));
 
             // Set TTL based on status
-            var ttlHours = status == JobStatus.Completed
-                ? _config.JobTtlHours
-                : _config.FailedJobTtlHours;
+            var ttlHours = status switch
+            {
+                JobStatus.DataReady => _config.JobTtlHours * 2, // Extra time for user editing
+                JobStatus.Completed => _config.JobTtlHours,
+                _ => _config.FailedJobTtlHours
+            };
             await _db.KeyExpireAsync(jobKey, TimeSpan.FromHours(ttlHours));
         }
 
@@ -127,6 +131,13 @@ public class RedisJobRepository : IJobRepository
         await _db.HashSetAsync(jobKey, hashEntries.ToArray());
 
         _logger.LogInformation("Job {JobId} PDF result saved ({Size} bytes)", jobId, pdfBytes.Length);
+    }
+
+    public async Task SaveProposalDataAsync(string jobId, ProposalData proposalData)
+    {
+        var jobKey = $"{JobKeyPrefix}{jobId}";
+        await _db.HashSetAsync(jobKey, "proposalData", JsonSerializer.Serialize(proposalData, _jsonOptions));
+        _logger.LogInformation("Job {JobId} ProposalData saved (no PDF)", jobId);
     }
 
     public async Task<List<string>> GetPendingJobIdsAsync(int count)
